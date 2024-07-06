@@ -1,16 +1,26 @@
 [package]
-name = "dump1090_rs"
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
+name = "control_tower"
+version = "0.1.0"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = {version = "4.4.8", features = ["color", "derive", "wrap_help"]}
+clap = { version = "4.4.8", features = ["color", "derive", "wrap_help"] }
 num-complex = "0.4.4"
 soapysdr = "0.4.0"
 libdump1090_rs = { path = "../", version = "0.7.0" }
 hex = "0.4.0"
 toml = "0.8.8"
 serde = { version = "1.0.193", features = ["derive"] }
+futures = "0.3.30"
+futures-util = "0.3.30"
+tokio = { version = "1.38.0", features = ["full"] }
+tokio-stream = "0.1.15"
+warp = "0.3.7"
+
+tiny-tokio-actor = "0.3.5"
+uuid = { version = "1.9.1", features = ["v4"] }
+env_logger = "0.11.3"
+dotenv = "0.15.0"
+log = "0.4.22"

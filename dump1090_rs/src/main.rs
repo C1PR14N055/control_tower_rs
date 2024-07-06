@@ -1,206 +1,142 @@
-mod sdrconfig;
+use std::net::SocketAddr;
+use std::str::FromStr;
 
-use std::io::Write;
-use std::net::{IpAddr, TcpListener};
+use futures::StreamExt;
+use tokio::sync::mpsc;
+use tokio::task;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
-use clap::Parser;
-use libdump1090_rs::utils;
-use num_complex::Complex;
-use sdrconfig::{SdrConfig, DEFAULT_CONFIG};
-use soapysdr::Direction;
+use uuid::Uuid;
+use warp::ws::WebSocket;
+use warp::*;
 
-const DIRECTION: Direction = Direction::Rx;
+use tiny_tokio_actor::*;
 
-const CUSTOM_CONFIG_HELP: &str =
-    "Filepath for config.toml file overriding or adding sdr config values for soapysdr";
-const CUSTOM_CONFIG_LONG_HELP: &str = r#"Filepath for config.toml file overriding or adding sdr config values for soapysdr
+#[derive(Clone, Debug)]
+struct ServerEvent(String);
 
-An example of overriding the included config of `config.toml` for the rtlsdr:
+// Mark the struct as a system event message.
+impl SystemEvent for ServerEvent {}
 
-[[sdr]]
-driver = "rtlsdr"
+#[tokio::main]
+async fn main() {
+    let path = std::path::Path::new(".env");
+    dotenv::from_path(path).ok();
 
-[[sdrs.setting]]
-key = "biastee"
-value = "true"
+    unsafe {
+        if std::env::var("RUST_LOG").is_err() {
+            std::env::set_var("RUST_LOG", "info,tiny_tokio_actor=debug,websocket=debug");
+        }
+    }
+    env_logger::init();
 
-[[sdr.gain]]
-key = "GAIN"
-value = 20.0
-"#;
+    let addr = std::env::var("HOST_PORT")
+        .ok()
+        .and_then(|string| SocketAddr::from_str(&string).ok())
+        .unwrap_or_else(|| SocketAddr::from_str("127.0.0.1:9000").unwrap());
 
-#[derive(Debug, Parser)]
-#[clap(
-    version,
-    name = "dump1090_rs",
-    author = "wcampbell0x2a",
-    about = "ADS-B Demodulator and Server"
-)]
-struct Options {
-    /// ip address to bind with for client connections
-    #[clap(long, default_value = "127.0.0.1")]
-    host: IpAddr,
+    // Create the event bus and actor system
+    let bus = EventBus::<ServerEvent>::new(1000);
+    let system = ActorSystem::new("test", bus);
 
-    /// port to bind with for client connections
-    #[clap(long, default_value = "30002")]
-    port: u16,
+    // Create the warp WebSocket route
+    let ws = warp::path!("echo")
+        .and(warp::any().map(move || system.clone()))
+        .and(warp::addr::remote())
+        .and(warp::ws())
+        .map(|system: ActorSystem<ServerEvent>, remote: Option<SocketAddr>, ws: warp::ws::Ws| {
+            ws.on_upgrade(move |websocket| start_echo(system, remote, websocket))
+        });
 
-    /// soapysdr driver name (sdr device) from default `config.toml` or `--custom-config`
-    ///
-    /// This is used both for instructing soapysdr how to find the sdr and what sdr is being used,
-    /// as well as the key value in the `config.toml` file. This must match exactly with the
-    /// `.driver` field in order for this application to use the provided config settings.
-    #[clap(long, default_value = "rtlsdr")]
-    driver: String,
+    // Route to serve index.html
+    let index_route =
+        warp::path::end().map(|| warp::reply::html(include_str!("dump1090_rs/static/index.html")));
 
-    /// specify extra values for soapysdr driver specification
-    #[clap(long)]
-    driver_extra: Vec<String>,
+    // Route to serve index.js
+    let js_route = warp::path("index.js").map(|| include_str!("./static/index.js"));
 
-    #[clap(long, help = CUSTOM_CONFIG_HELP, long_help = CUSTOM_CONFIG_LONG_HELP)]
-    custom_config: Option<String>,
+    // Route to serve index.css
+    let css_route = warp::path("index.css").map(|| {
+        warp::reply::with_header(include_str!("./static/index.css"), "Content-Type", "text/css")
+    });
+
+    // WebSocket route
+    let ws = ws.with(warp::log("echo"));
+
+    // Combine all routes
+    let routes = index_route.or(js_route).or(css_route).or(ws);
+
+    // Start the server
+    warp::serve(routes).run(addr).await;
 }
 
-// main will exit as 0 for success, 1 on error
-fn main() {
-    // read in default compiled config
-    let mut config: SdrConfig = toml::from_str(DEFAULT_CONFIG).unwrap();
+// Starts a new echo actor on our actor system
+async fn start_echo(
+    system: ActorSystem<ServerEvent>,
+    remote: Option<SocketAddr>,
+    websocket: WebSocket,
+) {
+    // Split out the websocket into incoming and outgoing
+    let (ws_out, mut ws_in) = websocket.split();
 
-    // parse opts
-    let options = Options::parse();
+    // Create an unbounded channel where the actor can send its responses to ws_out
+    let (sender, receiver) = mpsc::unbounded_channel();
+    let receiver = UnboundedReceiverStream::new(receiver);
+    task::spawn(receiver.map(Ok).forward(ws_out));
 
-    // parse config from custom filepath
-    if let Some(config_filepath) = options.custom_config {
-        let custom_config: SdrConfig =
-            toml::from_str(&std::fs::read_to_string(&config_filepath).unwrap()).unwrap();
-        println!("[-] read in custom config: {config_filepath}");
-        // push new configs to the front, so that the `find` method finds these first
-        for sdr in custom_config.sdrs {
-            config.sdrs.insert(0, sdr);
-        }
+    // Create a new echo actor with the newly created sender
+    let actor = EchoActor::new(sender);
+    // Use the websocket client address to generate a unique actor name
+    let addr = remote.map(|addr| addr.to_string()).unwrap_or_else(|| Uuid::new_v4().to_string());
+    let actor_name = format!("echo-actor-{}", &addr);
+    // Launch the actor on our actor system
+    let mut actor_ref = system.create_actor(&actor_name, actor).await.unwrap();
+
+    // Loop over all websocket messages received over ws_in
+    while let Some(result) = ws_in.next().await {
+        // If no error, we tell the websocket message to the echo actor, otherwise break the loop
+        match result {
+            Ok(msg) => actor_ref.tell(EchoRequest(msg)).unwrap(),
+            Err(error) => {
+                ::log::error!("error processing ws message from {}: {:?}", &addr, error);
+                break;
+            }
+        };
     }
 
-    // setup soapysdr driver
-    let mut driver = String::new();
-    driver.push_str(&format!("driver={}", options.driver));
+    // The loop has been broken, kill the echo actor
+    system.stop_actor(actor_ref.path()).await;
+}
 
-    for e in options.driver_extra {
-        driver.push_str(&format!(",{e}"));
+#[derive(Clone)]
+struct EchoActor {
+    sender: mpsc::UnboundedSender<warp::ws::Message>,
+}
+
+impl EchoActor {
+    pub fn new(sender: mpsc::UnboundedSender<warp::ws::Message>) -> Self {
+        EchoActor { sender }
     }
+}
 
-    println!("[-] using soapysdr driver_args: {driver}");
-    let d = match soapysdr::Device::new(&*driver) {
-        Ok(d) => d,
-        Err(e) => {
-            println!("[!] soapysdr error: {e}");
-            return;
-        }
-    };
+impl Actor<ServerEvent> for EchoActor {}
 
-    // check if --driver exists in config, with selected driver
-    let channel = if let Some(sdr) = config.sdrs.iter().find(|a| a.driver == options.driver) {
-        println!("[-] using config: {sdr:#?}");
-        // set user defined config settings
-        let channel = sdr.channel;
+#[derive(Clone, Debug)]
+struct EchoRequest(warp::ws::Message);
 
-        for gain in &sdr.gain {
-            println!("[-] Writing gain: {} = {}", gain.key, gain.value);
-            d.set_gain_element(DIRECTION, channel, &*gain.key, gain.value).unwrap();
-        }
-        if let Some(setting) = &sdr.setting {
-            for setting in setting {
-                println!("[-] Writing setting: {} = {}", setting.key, setting.value);
-                d.write_setting(&*setting.key, &*setting.value).unwrap();
-                println!(
-                    "[-] Reading setting: {} = {}",
-                    setting.key,
-                    d.read_setting(&*setting.key).unwrap()
-                );
-            }
-        }
+impl Message for EchoRequest {
+    type Response = ();
+}
 
-        if let Some(antenna) = &sdr.antenna {
-            println!("setting antenna: {}", antenna.name);
-            d.set_antenna(DIRECTION, channel, antenna.name.clone()).unwrap();
-        }
-
-        // now we set defaults
-        d.set_frequency(DIRECTION, channel, 1_090_000_000.0, ()).unwrap();
-        println!("[-] frequency: {:?}", d.frequency(DIRECTION, channel));
-
-        d.set_sample_rate(DIRECTION, channel, 2_400_000.0).unwrap();
-        println!("[-] sample rate: {:?}", d.sample_rate(DIRECTION, 0));
-        channel
-    } else {
-        panic!("[-] selected --driver gain values not found in custom or default config");
-    };
-
-    let mut stream = d.rx_stream::<Complex<i16>>(&[channel]).unwrap();
-
-    let mut buf = vec![Complex::new(0, 0); stream.mtu().unwrap()];
-    stream.activate(None).unwrap();
-
-    // bind to listener port
-    let listener = TcpListener::bind((options.host, options.port)).unwrap();
-    listener.set_nonblocking(true).expect("Cannot set non-blocking");
-
-    let mut sockets = vec![];
-
-    loop {
-        // add more clients
-        if let Ok((s, _addr)) = listener.accept() {
-            sockets.push(s);
-        }
-
-        // try and read from sdr device
-        match stream.read(&mut [&mut buf], 5_000_000) {
-            Ok(len) => {
-                //utils::save_test_data(&buf[..len]);
-                // demodulate new data
-                let buf = &buf[..len];
-                let outbuf = utils::to_mag(buf);
-                let resulting_data = libdump1090_rs::demod_2400::demodulate2400(&outbuf).unwrap();
-
-                // send new data to connected clients
-                if !resulting_data.is_empty() {
-                    let resulting_data: Vec<String> = resulting_data
-                        .iter()
-                        .map(|a| {
-                            let a = hex::encode(a);
-                            let a = format!("*{a};\n");
-                            println!("{}", &a[..a.len() - 1]);
-                            a
-                        })
-                        .collect();
-
-                    let mut remove_indexs = vec![];
-                    for (i, mut socket) in &mut sockets.iter().enumerate() {
-                        for msg in &resulting_data {
-                            // write, or add to remove list if ConnectionReset
-                            if let Err(e) = socket.write_all(msg.as_bytes()) {
-                                if e.kind() == std::io::ErrorKind::ConnectionReset {
-                                    remove_indexs.push(i);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    // remove
-                    for i in remove_indexs {
-                        sockets.remove(i);
-                    }
-                }
-            }
-            Err(e) => {
-                // exit on sdr timeout
-                let code = e.code;
-                if matches!(code, soapysdr::ErrorCode::Timeout) {
-                    println!("[!] exiting: could not read SDR device");
-                    // exit with error code as 1 so that systemctl can restart
-                    std::process::exit(1);
-                }
-            }
-        }
+#[async_trait]
+impl Handler<ServerEvent, EchoRequest> for EchoActor {
+    async fn handle(&mut self, msg: EchoRequest, ctx: &mut ActorContext<ServerEvent>) {
+        ::log::debug!(
+            "actor {} on system {} received message! {:?}",
+            &ctx.path,
+            ctx.system.name(),
+            &msg
+        );
+        self.sender.send(msg.0).unwrap()
     }
 }
