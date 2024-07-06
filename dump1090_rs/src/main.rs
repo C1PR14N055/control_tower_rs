@@ -10,6 +10,9 @@ use uuid::Uuid;
 use warp::ws::WebSocket;
 use warp::*;
 
+mod read_rtl_stream;
+use read_rtl_stream::read_loop::read_loop;
+
 use tiny_tokio_actor::*;
 
 #[derive(Clone, Debug)]
@@ -39,6 +42,8 @@ async fn main() {
     let bus = EventBus::<ServerEvent>::new(1000);
     let system = ActorSystem::new("test", bus);
 
+    let (tx, mut _rx) = mpsc::channel::<String>(100);
+
     // Create the warp WebSocket route
     let ws = warp::path!("echo")
         .and(warp::any().map(move || system.clone()))
@@ -65,6 +70,12 @@ async fn main() {
 
     // Combine all routes
     let routes = index_route.or(js_route).or(css_route).or(ws);
+
+    // Spawn a task for stream reading
+    let tx_clone = tx.clone();
+    tokio::spawn(async move {
+        read_loop(tx_clone);
+    });
 
     // Start the server
     warp::serve(routes).run(addr).await;

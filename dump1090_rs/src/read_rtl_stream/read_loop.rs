@@ -1,17 +1,15 @@
-mod sdrconfig;
-
-mod parse;
-
 use std::io::Write;
 use std::net::{IpAddr, TcpListener};
 
 use clap::Parser;
 use libdump1090_rs::utils;
 use num_complex::Complex;
-use sdrconfig::{SdrConfig, DEFAULT_CONFIG};
 use soapysdr::Direction;
 
 use tokio::sync::mpsc;
+
+use crate::read_rtl_stream::parse::parse;
+use crate::read_rtl_stream::sdrconfig::{SdrConfig, DEFAULT_CONFIG};
 
 const DIRECTION: Direction = Direction::Rx;
 
@@ -86,8 +84,7 @@ fn to_binary_repr(a: &String) {
 // main will exit as 0 for success, 1 on error
 pub fn read_loop(tx: mpsc::Sender<String>) {
     // TODO: move this to a test this is just a test
-    let binary_message = "0101110101000101110100000110010010110011101000001101010110010011011010100110011011010101101010010100110011110110";
-    hex2human::decode_adsb_message(binary_message);
+    // let binary_message = "0101110101000101110100000110010010110011101000001101010110010011011010100110011011010101101010010100110011110110";
 
     // read in default compiled config
     let mut config: SdrConfig = toml::from_str(DEFAULT_CONFIG).unwrap();
