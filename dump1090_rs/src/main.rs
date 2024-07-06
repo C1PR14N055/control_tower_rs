@@ -50,14 +50,14 @@ async fn main() {
 
     // Route to serve index.html
     let index_route =
-        warp::path::end().map(|| warp::reply::html(include_str!("dump1090_rs/static/index.html")));
+        warp::path::end().map(|| warp::reply::html(include_str!("static/index.html")));
 
     // Route to serve index.js
-    let js_route = warp::path("index.js").map(|| include_str!("./static/index.js"));
+    let js_route = warp::path("index.js").map(|| include_str!("static/index.js"));
 
     // Route to serve index.css
     let css_route = warp::path("index.css").map(|| {
-        warp::reply::with_header(include_str!("./static/index.css"), "Content-Type", "text/css")
+        warp::reply::with_header(include_str!("static/index.css"), "Content-Type", "text/css")
     });
 
     // WebSocket route

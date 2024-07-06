@@ -1,0 +1,260 @@
+// $primary_color: #0ff;
+$primary_color: #21ff19;
+$background_color: #010101;
+$radar_width: 70vmin;
+
+$animation_duration: 4s;
+
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap");
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+li {
+  list-style: none;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: $background_color;
+  color: $primary_color;
+  font-family: "Space Grotesk", sans-serif;
+  overflow: hidden;
+}
+
+.radar {
+  width: $radar_width;
+  aspect-ratio: 1 /1;
+  border-radius: 50%;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow:
+    inset 0 0 calc(#{$radar_width} / 2) rgba($primary_color, 0.4),
+    0 0 128px rgba($primary_color, 0.4);
+}
+
+.scanner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  aspect-ratio: 1 /1;
+  transform-origin: bottom right;
+  border-radius: 100% 0 0 0;
+
+  background: linear-gradient(45deg, transparent 50%, $primary_color);
+  border-right: 0.1rem solid $primary_color;
+  z-index: 10;
+  box-shadow: 4px -4px 0.5rem rgba(0, 0, 0, 0.445);
+  animation: scan $animation_duration linear infinite;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 92%;
+    right: 0;
+    bottom: 0;
+    border-radius: 50%;
+    background-color: $primary_color;
+    transform: translate(50%, 50%);
+    box-shadow: 0 0 6px $background_color;
+  }
+}
+
+.points {
+  $height: 0.4rem;
+  $translate: calc((#{$radar_width} / -2) - (#{$height} * 0.75));
+  transform: translate(0, $height * -1);
+
+  li {
+    position: absolute;
+    height: $height;
+    aspect-ratio: 1 / 5;
+    background-color: $primary_color;
+    transform-origin: bottom center;
+
+    box-shadow:
+      0 0 2px rgba($primary_color, 0.5),
+      0 0 4px rgba($primary_color, 0.5),
+      0 0 8px rgba($primary_color, 0.5),
+      0 0 16px rgba($primary_color, 0.5);
+
+    @for $i from 1 through 90 {
+      &:nth-child(#{$i}) {
+        transform: rotate(#{$i * 4}deg) translateY($translate);
+
+        @if $i % 4==0 {
+          &::before {
+            content: "#{$i * 4}";
+
+            position: absolute;
+            top: -1.25rem;
+            left: 0;
+            transform: translate(-50%, 0);
+            font-size: 0.8rem;
+            background: transparent;
+            color: $primary_color;
+            opacity: 1;
+            text-shadow:
+              0 0 2px rgba($primary_color, 0.5),
+              0 0 4px rgba($primary_color, 0.5),
+              0 0 8px rgba($primary_color, 0.5),
+              0 0 16px rgba($primary_color, 0.5);
+          }
+        }
+      }
+    }
+  }
+}
+
+.circles {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 0.2rem solid $primary_color;
+
+  div {
+    position: absolute;
+    inset: 0rem;
+    border-radius: 50%;
+    border: 1px solid rgba($primary_color, 0.75);
+    box-shadow:
+      0 0 0.25rem rgba($primary_color, 0.5),
+      inset 0 0 0.25rem rgba($primary_color, 0.5);
+
+    $num: 5;
+
+    @for $i from 1 to $num {
+      &:nth-child(#{$i}) {
+        inset: calc((#{$radar_width} / (#{$num} * 2)) * #{$i});
+      }
+    }
+  }
+}
+
+.lines {
+  position: absolute;
+  height: 100%;
+
+  div {
+    z-index: 20;
+    width: 1px;
+    position: absolute;
+    background-color: rgba($primary_color, 0.75);
+    height: 100%;
+    box-shadow:
+      0 0 0.5rem rgba($primary_color, 0.5),
+      inset 0 0 0.5rem rgba($primary_color, 0.5);
+
+    &:last-child {
+      transform: rotate(90deg);
+    }
+
+    &::after {
+      content: "";
+      position: absolute;
+      height: 100%;
+      width: 0.75rem;
+      background: repeating-linear-gradient(
+        $primary_color calc(1% + 1px),
+        #fff0 calc(1% + 2px) 11%
+      );
+      transform: translateX(-50%) translateY(5.5%);
+    }
+  }
+}
+
+.targets {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+
+  .plane {
+    position: absolute;
+    opacity: 0;
+    animation:
+      detect $animation_duration 3.5s infinite ease-out forwards,
+      plane ($animation_duration * 10) 3.5s infinite linear forwards;
+
+    &::before {
+      content: "\2708";
+      position: absolute;
+      transform: rotate(55deg);
+      font-size: 6vmin;
+      filter: drop-shadow(-4vmin -2vmin $primary_color);
+    }
+
+    @keyframes plane {
+      0% {
+        top: 20%;
+        left: 20%;
+      }
+
+      100% {
+        top: 40%;
+        left: 40%;
+      }
+    }
+  }
+
+  .ufo {
+    position: absolute;
+    opacity: 0;
+    animation:
+      detect $animation_duration 1.65s infinite ease-out,
+      ufo ($animation_duration * 15) infinite linear;
+
+    &::before {
+      content: "\2622";
+      position: absolute;
+      font-size: 6vmin;
+    }
+
+    @keyframes ufo {
+      0% {
+        top: 80%;
+        left: 80%;
+      }
+
+      100% {
+        top: 60%;
+        left: 70%;
+      }
+    }
+  }
+}
+
+@keyframes scan {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes detect {
+  0% {
+    opacity: 1;
+    text-shadow:
+      0 0 0.75rem,
+      0 0 0.75rem;
+  }
+
+  100% {
+    opacity: 0;
+    text-shadow: none;
+  }
+}
