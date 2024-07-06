@@ -1,5 +1,6 @@
-mod hex2human;
 mod sdrconfig;
+
+mod parse;
 
 use std::io::Write;
 use std::net::{IpAddr, TcpListener};
@@ -9,6 +10,8 @@ use libdump1090_rs::utils;
 use num_complex::Complex;
 use sdrconfig::{SdrConfig, DEFAULT_CONFIG};
 use soapysdr::Direction;
+
+use tokio::sync::mpsc;
 
 const DIRECTION: Direction = Direction::Rx;
 
@@ -77,11 +80,11 @@ fn to_binary_repr(a: &String) {
         .collect::<String>(); //
     println!("[-] Bin: {dec}");
     // the decoded message
-    hex2human::decode_adsb_message(&dec);
+    parse(&dec);
 }
 
 // main will exit as 0 for success, 1 on error
-pub fn read_rtl_stream() {
+pub fn read_loop(tx: mpsc::Sender<String>) {
     // TODO: move this to a test this is just a test
     let binary_message = "0101110101000101110100000110010010110011101000001101010110010011011010100110011011010101101010010100110011110110";
     hex2human::decode_adsb_message(binary_message);

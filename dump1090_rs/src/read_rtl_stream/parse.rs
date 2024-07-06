@@ -1,4 +1,4 @@
-pub fn decode_adsb_message(binary_message: &str) {
+pub fn parse(binary_message: &str) {
     // Ensure the binary message is 112 bits long
     if binary_message.len() != 112 {
         println!("Invalid ADS-B message length.");
@@ -127,5 +127,5 @@ fn decode_velocity(bits: &str) -> f64 {
 
 fn test_message() {
     let binary_message = "0101110101000101110100000110010010110011101000001101010110010011011010100110011011010101101010010100110011110110";
-    decode_adsb_message(binary_message);
+    parse(binary_message);
 }

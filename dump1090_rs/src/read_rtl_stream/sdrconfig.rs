@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-pub const DEFAULT_CONFIG: &str = include_str!("../config.toml");
+pub const DEFAULT_CONFIG: &str = include_str!("../../config.toml");
 #[derive(Debug, Deserialize)]
 pub struct SdrConfig {
     pub sdrs: Vec<Sdr>,
