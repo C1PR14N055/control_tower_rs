@@ -1,12 +1,12 @@
-use std::io::Write;
-use std::net::{IpAddr, TcpListener};
+use std::net::IpAddr;
 
 use clap::Parser;
+use futures::stream::SplitSink;
+use futures::SinkExt;
 use libdump1090_rs::utils;
 use num_complex::Complex;
 use soapysdr::Direction;
-
-use tokio::sync::mpsc;
+use warp::filters::ws::{Message, WebSocket};
 
 use crate::read_rtl_stream::parse::parse;
 use crate::read_rtl_stream::sdrconfig::{SdrConfig, DEFAULT_CONFIG};
@@ -82,9 +82,9 @@ fn to_binary_repr(a: &String) {
 }
 
 // main will exit as 0 for success, 1 on error
-pub fn read_loop(tx: mpsc::Sender<String>) {
+pub async fn read_loop(mut ws_out: SplitSink<WebSocket, Message>) {
     // TODO: move this to a test this is just a test
-    // let binary_message = "0101110101000101110100000110010010110011101000001101010110010011011010100110011011010101101010010100110011110110";
+    let binary_message = "0101110101000101110100000110010010110011101000001101010110010011011010100110011011010101101010010100110011110110";
 
     // read in default compiled config
     let mut config: SdrConfig = toml::from_str(DEFAULT_CONFIG).unwrap();
@@ -162,19 +162,9 @@ pub fn read_loop(tx: mpsc::Sender<String>) {
 
     let mut buf = vec![Complex::new(0, 0); stream.mtu().unwrap()];
     stream.activate(None).unwrap();
-
-    // bind to listener port
-    let listener = TcpListener::bind((options.host, options.port)).unwrap();
-    listener.set_nonblocking(true).expect("Cannot set non-blocking");
-
-    let mut sockets = vec![];
+    println!("[-] sent retarded data to client");
 
     loop {
-        // add more clients
-        if let Ok((s, _addr)) = listener.accept() {
-            sockets.push(s);
-        }
-
         // try and read from sdr device
         match stream.read(&mut [&mut buf], 5_000_000) {
             Ok(len) => {
@@ -186,34 +176,16 @@ pub fn read_loop(tx: mpsc::Sender<String>) {
 
                 // send new data to connected clients
                 if !resulting_data.is_empty() {
-                    let resulting_data: Vec<String> = resulting_data
-                        .iter()
-                        .map(|a| {
-                            let a = hex::encode(a);
-                            // do whatever with the hex data
-                            to_binary_repr(&a);
-                            let a = format!("[-] ADs-B: *{a};\n");
-                            println!("{}", &a[..a.len() - 1]);
-                            a
-                        })
-                        .collect();
+                    let mut res = Vec::new();
 
-                    let mut remove_indexs = vec![];
-                    for (i, mut socket) in &mut sockets.iter().enumerate() {
-                        for msg in &resulting_data {
-                            // write, or add to remove list if ConnectionReset
-                            if let Err(e) = socket.write_all(msg.as_bytes()) {
-                                if e.kind() == std::io::ErrorKind::ConnectionReset {
-                                    remove_indexs.push(i);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    // remove
-                    for i in remove_indexs {
-                        sockets.remove(i);
+                    for a in resulting_data.iter() {
+                        let a = hex::encode(a);
+                        // do whatever with the hex data
+                        to_binary_repr(&a);
+                        let a = format!("[-] ADs-B: *{a};\n");
+                        println!("{}", &a[..a.len() - 1]);
+                        let _ws_res = ws_out.send(Message::text(&a)).await;
+                        res.push(a);
                     }
                 }
             }

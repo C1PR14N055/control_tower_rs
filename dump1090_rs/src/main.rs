@@ -3,20 +3,18 @@ use std::str::FromStr;
 
 use futures::StreamExt;
 use tokio::sync::mpsc;
-use tokio::task;
-use tokio_stream::wrappers::UnboundedReceiverStream;
 
-use uuid::Uuid;
 use warp::ws::WebSocket;
 use warp::*;
 
 mod read_rtl_stream;
+
 use read_rtl_stream::read_loop::read_loop;
 
 use tiny_tokio_actor::*;
 
 #[derive(Clone, Debug)]
-struct ServerEvent(String);
+struct ServerEvent();
 
 // Mark the struct as a system event message.
 impl SystemEvent for ServerEvent {}
@@ -42,8 +40,6 @@ async fn main() {
     let bus = EventBus::<ServerEvent>::new(1000);
     let system = ActorSystem::new("test", bus);
 
-    let (tx, mut _rx) = mpsc::channel::<String>(100);
-
     // Create the warp WebSocket route
     let ws = warp::path!("echo")
         .and(warp::any().map(move || system.clone()))
@@ -65,17 +61,13 @@ async fn main() {
         warp::reply::with_header(include_str!("./static/index.css"), "Content-Type", "text/css")
     });
 
-    // WebSocket route
-    let ws = ws.with(warp::log("echo"));
-
     // Combine all routes
     let routes = index_route.or(js_route).or(css_route).or(ws);
 
     // Spawn a task for stream reading
-    let tx_clone = tx.clone();
-    tokio::spawn(async move {
-        read_loop(tx_clone);
-    });
+    // tokio::spawn(async move {
+    //     read_loop();
+    // });
 
     // Start the server
     warp::serve(routes).run(addr).await;
@@ -83,40 +75,15 @@ async fn main() {
 
 // Starts a new echo actor on our actor system
 async fn start_echo(
-    system: ActorSystem<ServerEvent>,
-    remote: Option<SocketAddr>,
+    _system: ActorSystem<ServerEvent>,
+    _remote: Option<SocketAddr>,
     websocket: WebSocket,
 ) {
     // Split out the websocket into incoming and outgoing
-    let (ws_out, mut ws_in) = websocket.split();
-
-    // Create an unbounded channel where the actor can send its responses to ws_out
-    let (sender, receiver) = mpsc::unbounded_channel();
-    let receiver = UnboundedReceiverStream::new(receiver);
-    task::spawn(receiver.map(Ok).forward(ws_out));
-
-    // Create a new echo actor with the newly created sender
-    let actor = EchoActor::new(sender);
-    // Use the websocket client address to generate a unique actor name
-    let addr = remote.map(|addr| addr.to_string()).unwrap_or_else(|| Uuid::new_v4().to_string());
-    let actor_name = format!("echo-actor-{}", &addr);
-    // Launch the actor on our actor system
-    let mut actor_ref = system.create_actor(&actor_name, actor).await.unwrap();
-
-    // Loop over all websocket messages received over ws_in
-    while let Some(result) = ws_in.next().await {
-        // If no error, we tell the websocket message to the echo actor, otherwise break the loop
-        match result {
-            Ok(msg) => actor_ref.tell(EchoRequest(msg)).unwrap(),
-            Err(error) => {
-                ::log::error!("error processing ws message from {}: {:?}", &addr, error);
-                break;
-            }
-        };
-    }
-
-    // The loop has been broken, kill the echo actor
-    system.stop_actor(actor_ref.path()).await;
+    let (ws_out, _ws_in) = websocket.split();
+    tokio::spawn(async move {
+        read_loop(ws_out).await;
+    });
 }
 
 #[derive(Clone)]

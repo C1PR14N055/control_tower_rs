@@ -39,7 +39,7 @@ document.addEventListener("DOMContentLoaded", (event) => {
     try {
       const parsedData = JSON.parse(data);
       // Update the data element with the new data
-      dataElement.value = parsedData.message;
+      dataElement.value += "\n", parsedData.message;
     } catch (e) {
       console.log(data);
       dataElement.textContent = data;

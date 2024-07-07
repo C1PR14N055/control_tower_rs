@@ -819,10 +819,11 @@ body {
     plane 40s 3.5s infinite linear forwards;
 }
 .targets .plane::before {
-  content: "✈";
+  /* content: "✈"; */
+  content: "▽";
   position: absolute;
-  transform: rotate(55deg);
-  font-size: 6vmin;
+  transform: rotate(-25deg);
+  font-size: 5vmin;
   filter: drop-shadow(-4vmin -2vmin #21ff19);
 }
 @keyframes plane {
