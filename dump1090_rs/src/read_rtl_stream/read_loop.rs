@@ -83,9 +83,6 @@ fn to_binary_repr(a: &String) {
 
 // main will exit as 0 for success, 1 on error
 pub async fn read_loop(mut ws_out: SplitSink<WebSocket, Message>) {
-    // TODO: move this to a test this is just a test
-    let binary_message = "0101110101000101110100000110010010110011101000001101010110010011011010100110011011010101101010010100110011110110";
-
     // read in default compiled config
     let mut config: SdrConfig = toml::from_str(DEFAULT_CONFIG).unwrap();
 
@@ -162,7 +159,11 @@ pub async fn read_loop(mut ws_out: SplitSink<WebSocket, Message>) {
 
     let mut buf = vec![Complex::new(0, 0); stream.mtu().unwrap()];
     stream.activate(None).unwrap();
-    println!("[-] sent retarded data to client");
+
+    // TODO: make this a log2 function
+    println!("[-] Sent retarded data to client");
+    let bin_msg = "0101110101000101110100000110010010110011101000001101010110010011011010100110011011010101101010010100110011110110";
+    ws_out.send(Message::text(bin_msg)).await.unwrap();
 
     loop {
         // try and read from sdr device
@@ -182,7 +183,7 @@ pub async fn read_loop(mut ws_out: SplitSink<WebSocket, Message>) {
                         let a = hex::encode(a);
                         // do whatever with the hex data
                         to_binary_repr(&a);
-                        let a = format!("[-] ADs-B: *{a};\n");
+                        let a = format!("[-] ADs-B: *{a};");
                         println!("{}", &a[..a.len() - 1]);
                         let _ws_res = ws_out.send(Message::text(&a)).await;
                         res.push(a);

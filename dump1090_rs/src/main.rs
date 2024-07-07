@@ -64,11 +64,6 @@ async fn main() {
     // Combine all routes
     let routes = index_route.or(js_route).or(css_route).or(ws);
 
-    // Spawn a task for stream reading
-    // tokio::spawn(async move {
-    //     read_loop();
-    // });
-
     // Start the server
     warp::serve(routes).run(addr).await;
 }

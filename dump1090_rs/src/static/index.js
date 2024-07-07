@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", (event) => {
 
   // Listen for messages
   socket.addEventListener("message", (event) => {
-    console.log("Message from server ", event.data);
+    console.log(event.data);
 
     // Update the UI
     updateUI(event.data);
@@ -35,14 +35,7 @@ document.addEventListener("DOMContentLoaded", (event) => {
 
   // Update the UI function
   function updateUI(data) {
-    // Assuming the data is JSON formatted
-    try {
-      const parsedData = JSON.parse(data);
-      // Update the data element with the new data
-      dataElement.value += "\n", parsedData.message;
-    } catch (e) {
-      console.log(data);
-      dataElement.textContent = data;
-    }
+    dataElement.textContent += "\n" + data;
+    console.log(data);
   }
 });
