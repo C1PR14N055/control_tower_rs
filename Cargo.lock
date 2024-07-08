@@ -337,7 +337,6 @@ dependencies = [
  "url",
  "uuid",
  "warp",
- "wasm-bindgen",
 ]
 
 [[package]]

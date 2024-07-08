@@ -7,9 +7,8 @@ use tokio::sync::mpsc;
 use warp::ws::WebSocket;
 use warp::*;
 
-mod read_rtl_stream;
-
-use read_rtl_stream::read_loop::read_loop;
+mod webserver;
+use webserver::read_loop::read_loop;
 
 use tiny_tokio_actor::*;
 
@@ -21,11 +20,12 @@ impl SystemEvent for ServerEvent {}
 
 #[tokio::main]
 async fn main() {
+    // env logger and dotenv
     let path = std::path::Path::new(".env");
     dotenv::from_path(path).ok();
-
     env_logger::init();
 
+    // set port to 127.0.0.1 and port to 9000
     let addr = std::env::var("HOST_PORT")
         .ok()
         .and_then(|string| SocketAddr::from_str(&string).ok())
@@ -33,7 +33,7 @@ async fn main() {
 
     // Create the event bus and actor system
     let bus = EventBus::<ServerEvent>::new(1000);
-    let system = ActorSystem::new("test", bus);
+    let system = ActorSystem::new("echo", bus);
 
     // Create the warp WebSocket route
     let ws = warp::path!("echo")
@@ -59,11 +59,13 @@ async fn main() {
     // Combine all routes
     let routes = index_route.or(js_route).or(css_route).or(ws);
 
-    // Start the server
+    // Start the server and await it
     warp::serve(routes).run(addr).await;
 }
 
-// Starts a new echo actor on our actor system
+// Starts a new echo actor on our actor system.
+// This starts a new thread that reads in a loop
+// from the stream and sends the data to the ws_out
 async fn start_echo(
     _system: ActorSystem<ServerEvent>,
     _remote: Option<SocketAddr>,

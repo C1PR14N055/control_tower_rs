@@ -21,6 +21,16 @@ futures = "0.3"
 tokio-stream = "0.1"
 pin-project = "1.0"
 
+# So that you can run:
+# ➜  dump1090_rs git:(master) ✗ wasm-pack build --target web
+# And not get this error:
+# Error: crate-type must be cdylib to compile to wasm32-unknown-unknown. Add the following to your Cargo.toml file:
+# Caused by: crate-type must be cdylib to compile to wasm32-unknown-unknown. Add the following to your Cargo.toml file:
+# Import THIS
+[lib]
+crate-type = ["cdylib", "rlib"]
+# Import THESE
+
 [dev-dependencies]
 assert_hex = "0.4.1"
 criterion = "0.5.1"
