@@ -1,14 +1,24 @@
-# Changelog
+# Control Tower
+
+## It works - v 0.1
+
+# -----CHANGELOG dump1090_rs_original-----
+
+## Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
+
 ## [v0.7.1] 2024-02-10
+
 - Add `--driver-extra` to specify additional sopaysdr device options [!108](https://github.com/rsadsb/dump1090_rs/pull/108)
 
 ## [v0.7.0] 2023-11-22
+
 - Inline `calculate_bit`, giving 5% performance boost
 - Bump MSRV to 1.70, for new workspace packages, required libc version, and clap updates
 - Update `--host` to support IPv6 [!67](https://github.com/rsadsb/dump1090_rs/pull/67)
@@ -17,11 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Thanks [@tjmullicani](https://github.com/tjmullicani)
 
 ## [v0.6.1]
+
 - Update clap to v4
 - Update MSRV to 1.64
 
 ## [v0.6.0] 2022-08-19
+
 ### Features
+
 - Bump MSRV for using new const Mutex, removing `once_cell`.
 - Fix error when running `cargo test` including the shared library `soapysdr`
 - Bump `soapysdr-rs` to `v0.3.2`, enabling the use of read/write settings. For example, enabling bias-t on the rtlsdr is now allowed!
@@ -34,29 +47,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated other docker images to `0.2.0`: [docker hub](https://hub.docker.com/repository/docker/rsadsb/ci/tags?page=1&ordering=last_updated&name=0.2.0)
 
 ### Breaking
+
 - Stripped release binaries, requires bump of MSRV to `1.59`. This reduces the size of the generated binary from ~800KB to ~400KB.
 - Added `overflow-checks`, tested without errors.
 
 ## [v0.5.1] 2022-02-13
 
 ## [v0.5.0] 2022-02-12
+
 - Support Multi SDRs with the help of soapysdr: [!10](https://github.com/rsadsb/dump1090_rs/pull/10)
 - Add CI builds for releases
 - Docker images for cross compiling are available at [hub.docker](https://hub.docker.com/r/rsadsb/ci/tags).
 - Binaries are available in Github Releases from the CI.
 
 ## [v0.4.0] 2021-12-08
+
 - 9% speed increases in benchmarks.
 - Add `--host` and `--port` for control of TCP server.
 
 ## [v0.2.0] 2021-10-31
+
 - Add tests
 - Add benchmarks
 
 ## [v0.1.1] 2021-10-12
+
 - Add `Phase` for holding state matchine of current phase, as well as functionalize the huge match/if statement
   from the original dump1090_rs fork.
 - Handle ConnectionReset from client applications
 
 ## [v0.1.0] 2021-09-21
+
 - Initial Release
