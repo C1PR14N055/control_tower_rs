@@ -19,7 +19,7 @@ jobs:
           - aarch64-unknown-linux-gnu
 
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       - uses: dtolnay/rust-toolchain@d76c2a93c593483c9892fd8d2538734f73ed8588 # stable
         with:
           target: ${{ matrix.targets }}
