@@ -1,4 +1,6 @@
 use std::net::IpAddr;
+use std::thread;
+use std::time;
 
 use clap::Parser;
 use futures::stream::SplitSink;
@@ -93,7 +95,7 @@ pub async fn read_loop(mut ws_out: SplitSink<WebSocket, Message>) {
     if let Some(config_filepath) = options.custom_config {
         let custom_config: SdrConfig =
             toml::from_str(&std::fs::read_to_string(&config_filepath).unwrap()).unwrap();
-        println!("[-] read in custom config: {config_filepath}");
+        println!("[-] Read in custom config: {config_filepath}");
         // push new configs to the front, so that the `find` method finds these first
         for sdr in custom_config.sdrs {
             config.sdrs.insert(0, sdr);
@@ -108,18 +110,18 @@ pub async fn read_loop(mut ws_out: SplitSink<WebSocket, Message>) {
         driver.push_str(&format!(",{e}"));
     }
 
-    println!("[-] using soapysdr driver_args: {driver}");
+    println!("[-] Using soapysdr driver_args: {driver}");
     let d = match soapysdr::Device::new(&*driver) {
         Ok(d) => d,
         Err(e) => {
-            println!("[!] soapysdr error: {e}");
+            println!("[!] Soapysdr error: {e}");
             return;
         }
     };
 
     // check if --driver exists in config, with selected driver
     let channel = if let Some(sdr) = config.sdrs.iter().find(|a| a.driver == options.driver) {
-        println!("[-] using config: {sdr:#?}");
+        println!("[-] Using config: {sdr:#?}");
         // set user defined config settings
         let channel = sdr.channel;
 
@@ -140,19 +142,19 @@ pub async fn read_loop(mut ws_out: SplitSink<WebSocket, Message>) {
         }
 
         if let Some(antenna) = &sdr.antenna {
-            println!("setting antenna: {}", antenna.name);
+            println!("[-] Setting antenna: {}", antenna.name);
             d.set_antenna(DIRECTION, channel, antenna.name.clone()).unwrap();
         }
 
         // now we set defaults
         d.set_frequency(DIRECTION, channel, 1_090_000_000.0, ()).unwrap();
-        println!("[-] frequency: {:?}", d.frequency(DIRECTION, channel));
+        println!("[-] Frequency: {:?}", d.frequency(DIRECTION, channel));
 
         d.set_sample_rate(DIRECTION, channel, 2_400_000.0).unwrap();
-        println!("[-] sample rate: {:?}", d.sample_rate(DIRECTION, 0));
+        println!("[-] Sample rate: {:?}", d.sample_rate(DIRECTION, 0));
         channel
     } else {
-        panic!("[-] selected --driver gain values not found in custom or default config");
+        panic!("[-] Selected --driver gain values not found in custom or default config");
     };
 
     let mut stream = d.rx_stream::<Complex<i16>>(&[channel]).unwrap();
@@ -161,15 +163,27 @@ pub async fn read_loop(mut ws_out: SplitSink<WebSocket, Message>) {
     stream.activate(None).unwrap();
 
     // TODO: make this a log2 function
-    println!("[-] Sent retarded data to client");
-    let bin_msg = "0101110101000101110100000110010010110011101000001101010110010011011010100110011011010101101010010100110011110110";
-    ws_out.send(Message::text(bin_msg)).await.unwrap();
+    let bin_msg = vec![
+        "11010101100100110110101001100110",
+        "11010101101010010100110011110110",
+        "010111010100010111010000011001001011001110100000",
+    ];
+
+    println!("[-] Sending dummy data to client");
+    for i in 0..3 {
+        ws_out.send(Message::text(bin_msg[i])).await.unwrap();
+
+        let ten_millis = time::Duration::from_millis(800);
+        let now = time::Instant::now();
+        thread::sleep(ten_millis);
+        assert!(now.elapsed() >= ten_millis);
+    }
+    println!("[-] Sent dummy data to client");
 
     loop {
         // try and read from sdr device
         match stream.read(&mut [&mut buf], 5_000_000) {
             Ok(len) => {
-                //utils::save_test_data(&buf[..len]);
                 // demodulate new data
                 let buf = &buf[..len];
                 let outbuf = utils::to_mag(buf);
@@ -183,7 +197,7 @@ pub async fn read_loop(mut ws_out: SplitSink<WebSocket, Message>) {
                         let a = hex::encode(a);
                         // do whatever with the hex data
                         to_binary_repr(&a);
-                        let a = format!("[-] ADs-B: *{a};");
+                        let a = format!("[-] ADS-B: *{a};");
                         println!("{}", &a[..a.len() - 1]);
                         let _ws_res = ws_out.send(Message::text(&a)).await;
                         res.push(a);
@@ -194,7 +208,7 @@ pub async fn read_loop(mut ws_out: SplitSink<WebSocket, Message>) {
                 // exit on sdr timeout
                 let code = e.code;
                 if matches!(code, soapysdr::ErrorCode::Timeout) {
-                    println!("[!] exiting: could not read SDR device");
+                    println!("[!] Exiting: could not read SDR device");
                     // exit with error code as 1 so that systemctl can restart
                     std::process::exit(1);
                 }

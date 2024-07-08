@@ -24,11 +24,6 @@ async fn main() {
     let path = std::path::Path::new(".env");
     dotenv::from_path(path).ok();
 
-    unsafe {
-        if std::env::var("RUST_LOG").is_err() {
-            std::env::set_var("RUST_LOG", "info,tiny_tokio_actor=debug,websocket=debug");
-        }
-    }
     env_logger::init();
 
     let addr = std::env::var("HOST_PORT")

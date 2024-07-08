@@ -1,8 +1,8 @@
-pub fn parse(binary_message: &str) {
+pub fn parse(binary_message: &str) -> String {
     // Ensure the binary message is 112 bits long
     if binary_message.len() != 112 {
         println!("Invalid ADS-B message length.");
-        return;
+        return "Invalid ADS-B message length.".to_string();
     }
 
     // Extract the type code (bits 33-37, 5 bits)
@@ -16,6 +16,7 @@ pub fn parse(binary_message: &str) {
             let identification = decode_identification(&binary_message[40..88]);
             println!("[-] Category: {}", category);
             println!("[-] Identification: {}", identification);
+            format!("tc={};cat={};id={}", type_code, category, identification)
         }
         5..=8 => {
             // Surface Position
@@ -23,6 +24,7 @@ pub fn parse(binary_message: &str) {
             let (lat, lon) = decode_surface_position(binary_message);
             println!("[-] Latitude: {}", lat);
             println!("[-] Longitude: {}", lon);
+            format!("tc={};lat={};lon={}", type_code, lat, lon)
         }
         9..=18 => {
             // Airborne Position and Altitude
@@ -32,27 +34,33 @@ pub fn parse(binary_message: &str) {
             let (lat, lon) = decode_airborne_position(binary_message);
             println!("[-] Latitude: {}", lat);
             println!("[-] Longitude: {}", lon);
+            format!("tc={};alt={};lat={};lon={}", type_code, altitude, lat, lon)
         }
         19 => {
             // Airborne Velocity
             println!("[-] Type Code: {} (Airborne Velocity)", type_code);
             let velocity = decode_velocity(&binary_message[40..]);
             println!("[-] Velocity: {} knots", velocity);
+            format!("tc={};vel={};", type_code, velocity)
         }
         20..=22 => {
             // Reserved for future use
             println!("[-] Type Code: {} (Reserved for future use)", type_code);
+            format!("tc={};", type_code)
         }
         23..=27 => {
             // Test messages
             println!("[-] Type Code: {} (Test Message)", type_code);
+            format!("tc={};", type_code)
         }
         28..=31 => {
             // Extended Squitter
             println!("[-] Type Code: {} (Extended Squitter)", type_code);
+            format!("tc={};", type_code)
         }
         _ => {
             println!("[-] Unknown or unsupported type code: {}", type_code);
+            format!("tc={};", type_code)
         }
     }
 }
@@ -125,7 +133,7 @@ fn decode_velocity(bits: &str) -> f64 {
     u32::from_str_radix(velocity_bits, 2).unwrap_or(0) as f64
 }
 
-fn test_message() {
-    let binary_message = "0101110101000101110100000110010010110011101000001101010110010011011010100110011011010101101010010100110011110110";
-    parse(binary_message);
-}
+// fn test_message() {
+//     let binary_message = "0101110101000101110100000110010010110011101000001101010110010011011010100110011011010101101010010100110011110110";
+//     parse(binary_message);
+// }
