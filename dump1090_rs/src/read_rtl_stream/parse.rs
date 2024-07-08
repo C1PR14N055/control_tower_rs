@@ -1,4 +1,27 @@
-pub fn parse(binary_message: &str) -> String {
+// converts hex to binary
+fn hex_2_bin(a: &String) -> String {
+    println!("[-] Hex: {a}");
+    // print hex decoded string
+    let dec = a
+        .chars()
+        .map(|c| {
+            // Convert each hex character to its binary representation
+            let bin = format!("{:04b}", c.to_digit(16).expect("Invalid hex digit"));
+            bin
+        })
+        .collect::<String>(); //
+
+    println!("[-] Bin: {dec}");
+    dec
+    // the decoded message
+}
+
+extern crate wasm_bindgen;
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+pub fn parse(hex_message: &str) -> String {
+    let binary_message = hex_2_bin(&hex_message.to_string());
     // Ensure the binary message is 112 bits long
     if binary_message.len() != 112 {
         println!("Invalid ADS-B message length.");
@@ -18,20 +41,22 @@ pub fn parse(binary_message: &str) -> String {
             println!("[-] Identification: {}", identification);
             format!("tc={};cat={};id={}", type_code, category, identification)
         }
+
         5..=8 => {
             // Surface Position
             println!("[-] Type Code: {} (Surface Position)", type_code);
-            let (lat, lon) = decode_surface_position(binary_message);
+            let (lat, lon) = decode_surface_position(&binary_message);
             println!("[-] Latitude: {}", lat);
             println!("[-] Longitude: {}", lon);
             format!("tc={};lat={};lon={}", type_code, lat, lon)
         }
+
         9..=18 => {
             // Airborne Position and Altitude
             println!("[-] Type Code: {} (Airborne Position)", type_code);
             let altitude = decode_altitude(&binary_message[40..52]);
             println!("[-] Altitude: {} feet", altitude);
-            let (lat, lon) = decode_airborne_position(binary_message);
+            let (lat, lon) = decode_airborne_position(&binary_message);
             println!("[-] Latitude: {}", lat);
             println!("[-] Longitude: {}", lon);
             format!("tc={};alt={};lat={};lon={}", type_code, altitude, lat, lon)
@@ -134,6 +159,6 @@ fn decode_velocity(bits: &str) -> f64 {
 }
 
 // fn test_message() {
-//     let binary_message = "0101110101000101110100000110010010110011101000001101010110010011011010100110011011010101101010010100110011110110";
-//     parse(binary_message);
+//     let binary_message = String::from("0101110101000101110100000110010010110011101000001101010110010011011010100110011011010101101010010100110011110110");
+//     parse(&binary_message);
 // }

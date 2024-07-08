@@ -67,22 +67,6 @@ struct Options {
     custom_config: Option<String>,
 }
 
-fn to_binary_repr(a: &String) {
-    println!("[-] Hex: {a}");
-    // print hex decoded string
-    let dec = a
-        .chars()
-        .map(|c| {
-            // Convert each hex character to its binary representation
-            let bin = format!("{:04b}", c.to_digit(16).expect("Invalid hex digit"));
-            bin
-        })
-        .collect::<String>(); //
-    println!("[-] Bin: {dec}");
-    // the decoded message
-    parse(&dec);
-}
-
 // main will exit as 0 for success, 1 on error
 pub async fn read_loop(mut ws_out: SplitSink<WebSocket, Message>) {
     // read in default compiled config
@@ -196,7 +180,8 @@ pub async fn read_loop(mut ws_out: SplitSink<WebSocket, Message>) {
                     for a in resulting_data.iter() {
                         let a = hex::encode(a);
                         // do whatever with the hex data
-                        to_binary_repr(&a);
+                        // to_binary_repr(&a);
+                        let a = parse(&a);
                         let a = format!("[-] ADS-B: *{a};");
                         println!("{}", &a[..a.len() - 1]);
                         let _ws_res = ws_out.send(Message::text(&a)).await;
