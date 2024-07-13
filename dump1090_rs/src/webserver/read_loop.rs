@@ -1,6 +1,4 @@
 use std::net::IpAddr;
-use std::thread;
-use std::time;
 
 use clap::Parser;
 use futures::stream::SplitSink;
@@ -10,7 +8,7 @@ use num_complex::Complex;
 use soapysdr::Direction;
 use warp::filters::ws::{Message, WebSocket};
 
-use crate::webserver::parse;
+use crate::webserver::parse::parse;
 use crate::webserver::sdrconfig::{SdrConfig, DEFAULT_CONFIG};
 
 const DIRECTION: Direction = Direction::Rx;
@@ -146,17 +144,6 @@ pub async fn read_loop(mut ws_out: SplitSink<WebSocket, Message>) {
     let mut buf = vec![Complex::new(0, 0); stream.mtu().unwrap()];
     stream.activate(None).unwrap();
 
-    // TODO: make this a log2 function
-    // test data to send
-    // let bin_msg =  "1101010110010011011010100110011011010101101010010100110011110110010111010100010111010000011001001011001110100000";
-    //
-    // println!("[-] Sending dummy data to client for 5 mins to test");
-    // for i in 0..300 {
-    //     ws_out.send(Message::text(bin_msg)).await.unwrap();
-    //     thread::sleep(time::Duration::from_millis(1000));
-    // }
-    // println!("[-] Sent dummy data to client");
-
     loop {
         // try and read from sdr device
         match stream.read(&mut [&mut buf], 5_000_000) {
@@ -172,11 +159,16 @@ pub async fn read_loop(mut ws_out: SplitSink<WebSocket, Message>) {
 
                     for a in resulting_data.iter() {
                         let a = hex::encode(a);
-                        // do whatever with the hex data
-                        // to_binary_repr(&a);
+                        // send on ws_out the hex data
                         let _ws_res = ws_out.send(Message::text(&a)).await;
 
                         let a = format!("[-] ADS-B: *{a};");
+
+                        // Print cute data
+                        // let cute = parse(&a);
+                        // println!("{}", cute);
+
+                        // Print raw data
                         println!("{}", &a[..a.len() - 1]);
                         res.push(a);
                     }

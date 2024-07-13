@@ -1,4 +1,44 @@
+const DEBUG = true;
+const RELOAD_INTERVAL = 10000;
+
+if (DEBUG) {
+  setTimeout(() => {}, RELOAD_INTERVAL);
+}
+
+// Test log
 console.log("Hello from the frontend! 🚀");
+
+// DOM load events
+document.addEventListener("DOMContentLoaded", (_event) => {
+  console.log("DOM fully loaded and parsed!");
+  // Create a WebSocket connection
+  const socket = new WebSocket("ws://127.0.0.1:9000/echo");
+  // Connection opened
+  socket.addEventListener("open", (_event) => {
+    console.log("WebSocket is open now.");
+    socket.send("echooo 2 10 10 10");
+  });
+  // Listen for messages
+  socket.addEventListener("message", (event) => {
+    console.log(`[-] Got data from server: ${event.data}`);
+    // TODO: try catch this
+    parsedData = parse(event.data);
+    // Update the UI
+    updateUI(parsedData);
+  });
+  // Handle errors
+  socket.addEventListener("error", (error) => {
+    console.error("WebSocket error observed:", error);
+    alert("WebSocket error observed:", error);
+  });
+  // Connection closed
+  socket.addEventListener("close", (_event) => {
+    console.log("WebSocket is closed now.");
+  });
+  // Coordinates for Arad, Romania (test case)
+  let aradCoords = getCartesian(46.1866, 21.3123);
+  console.log(aradCoords);
+});
 
 // convert lat/lon to cartesian coordinates
 function getCartesian(lat, lon) {
@@ -40,70 +80,161 @@ function parse(hexMessage) {
     return "Invalid ADS-B message length.";
   }
 
-  // Extract ICAO Address (first 24 bits)
-  let icaoAddress = parseInt(binaryMessage.slice(8, 32), 2)
-    .toString(16)
-    .toUpperCase()
-    .padStart(6, "0");
-
-  // log ICAO Address
-  console.log(`[-] ICAO Address: ${icaoAddress}`);
-
   // Extract the type code (bits 33-37, 5 bits)
   let typeCode = parseInt(binaryMessage.slice(32, 37), 2) || 0;
   let pretty = "\n";
+  let message = {};
 
   switch (true) {
-    case 1 <= typeCode && typeCode <= 4:
-      pretty = `[-] Type Code: ${typeCode} (Identification)`;
+    // TCAS (Traffic Collision Avoidance System)
+    // TODO: check this works?
+    case 0: {
+      let identification = decodeIdentification(binaryMessage.slice(40, 88));
+      // Extract ICAO Address (first 24 bits)
+      let icaoAddress = parseInt(binaryMessage.slice(8, 32), 2)
+        .toString(16)
+        .toUpperCase()
+        .padStart(6, "0");
+      message.typeCode = typeCode;
+      message.typeDesc = "TCAS";
+      message.icaoAddress = icaoAddress;
+      message.ident = identification;
+
+      return message;
+    }
+
+    case 1 <= typeCode && typeCode <= 4: {
       let category = parseInt(binaryMessage.slice(37, 40), 2) || 0;
       let identification = decodeIdentification(binaryMessage.slice(40, 88));
-      pretty += `; Category: ${category}`;
-      console.log(`[-] IDENT: ${identification}`);
-      pretty += `; IDENT: ${identification}`;
-      return `icao=${icaoAddress};tc=${typeCode};cat=${category};id=${identification};cute=${pretty}`;
+      // Extract ICAO Address (first 24 bits)
+      let icaoAddress = parseInt(binaryMessage.slice(8, 32), 2)
+        .toString(16)
+        .toUpperCase()
+        .padStart(6, "0");
+      message.typeCode = typeCode;
+      message.typeDesc = "IDENT";
+      message.category = category;
+      message.icaoAddress = icaoAddress;
+      message.ident = identification;
 
-    case 5 <= typeCode && typeCode <= 8:
-      pretty = `[-] Type Code: ${typeCode} (Surface Position)`;
+      return message;
+    }
+
+    case 5 <= typeCode && typeCode <= 8: {
       let [lat, lon] = decodeSurfacePosition(binaryMessage);
-      pretty += `; Latitude: ${lat}`;
-      pretty += `; Longitude: ${lon}`;
-      return `icao=${icaoAddress};tc=${typeCode};lat=${lat};lon=${lon};cute=${pretty}`;
+      // Extract ICAO Address (first 24 bits)
+      let icaoAddress = parseInt(binaryMessage.slice(8, 32), 2)
+        .toString(16)
+        .toUpperCase()
+        .padStart(6, "0");
+      let identification = decodeIdentification(binaryMessage.slice(40, 88));
+      message.typeCode = typeCode;
+      message.typeDesc = "Surface Position";
+      message.icaoAddress = icaoAddress;
+      message.ident = identification;
+      message.latitude = lat;
+      message.longitude = lon;
 
-    case 9 <= typeCode && typeCode <= 18:
-      pretty = `[-] Type Code: ${typeCode} (Airborne Position w/ Altitude)`;
+      return message;
+    }
+
+    case 9 <= typeCode && typeCode <= 18: {
       let altitude = decodeAltitude(binaryMessage.slice(40, 52));
-      pretty += `; Altitude: ${altitude} feet`;
-      try {
-        [lat, lon] = decodeAirbornePosition(binaryMessage);
-        pretty += `; Latitude: ${lat}`;
-        pretty += `; Longitude: ${lon}`;
-        return `icao=${icaoAddress};tc=${typeCode};alt=${altitude};lat=${lat};lon=${lon};cute=${pretty}`;
-      } catch (e) {
-        // silence
-      }
+      let [lat, lon] = decodeAirbornePosition(binaryMessage);
+      // Extract ICAO Address (first 24 bits)
+      let icaoAddress = parseInt(binaryMessage.slice(8, 32), 2)
+        .toString(16)
+        .toUpperCase()
+        .padStart(6, "0");
+      let identification = decodeIdentification(binaryMessage.slice(40, 88));
 
-    case typeCode === 19:
-      pretty = `[-] Type Code: ${typeCode} (Airborne Velocity)`;
+      message.typeCode = typeCode;
+      message.typeDesc = "Airborne Position w/ Altitude";
+      message.icaoAddress = icaoAddress;
+      message.ident = identification;
+      message.latitude = lat;
+      message.longitude = lon;
+      message.altitude = altitude;
+
+      return message;
+    }
+
+    case typeCode === 19: {
       let velocity = decodeVelocity(binaryMessage.slice(40));
-      pretty += `; Velocity: ${velocity} knots`;
-      return `icao=${icaoAddress};tc=${typeCode};vel=${velocity};cute=${pretty}`;
+      let identification = decodeIdentification(binaryMessage.slice(40, 88));
+      // Extract ICAO Address (first 24 bits)
+      let icaoAddress = parseInt(binaryMessage.slice(8, 32), 2)
+        .toString(16)
+        .toUpperCase()
+        .padStart(6, "0");
+      message.typeCode = typeCode;
+      message.typeDesc = "Airborne Velocity";
+      message.icaoAddress = icaoAddress;
+      message.ident = identification;
+      message.velocity = velocity;
 
-    case 20 <= typeCode && typeCode <= 22:
-      pretty = `[-] Type Code: ${typeCode} (Reserved for future use)`;
-      return `icao=${icaoAddress};tc=${typeCode};cute=${pretty}`;
+      return message;
+    }
 
-    case 23 <= typeCode && typeCode <= 27:
-      pretty = `[-] Type Code: ${typeCode} (Test Message)`;
-      return `icao=${icaoAddress};tc=${typeCode};cute=${pretty}`;
+    case 20 <= typeCode && typeCode <= 22: {
+      // Extract ICAO Address (first 24 bits)
+      let icaoAddress = parseInt(binaryMessage.slice(8, 32), 2)
+        .toString(16)
+        .toUpperCase()
+        .padStart(6, "0");
+      let identification = decodeIdentification(binaryMessage.slice(40, 88));
+      message.typeCode = typeCode;
+      message.typeDesc = "Reserved for future use";
+      message.icaoAddress = icaoAddress;
+      message.ident = identification;
 
-    case 28 <= typeCode && typeCode <= 31:
-      pretty = `[-] Type Code: ${typeCode} (Extended Squitter)`;
-      return `icao=${icaoAddress};tc=${typeCode};cute=${pretty}`;
+      return message;
+    }
 
-    default:
-      pretty = `[-] Type Code: ${typeCode} (Unknown or unsupported)`;
-      return `icao=${icaoAddress};tc=${typeCode};cute=${pretty}`;
+    case 23 <= typeCode && typeCode <= 27: {
+      let identification = decodeIdentification(binaryMessage.slice(40, 88));
+      // Extract ICAO Address (first 24 bits)
+      let icaoAddress = parseInt(binaryMessage.slice(8, 32), 2)
+        .toString(16)
+        .toUpperCase()
+        .padStart(6, "0");
+      message.typeCode = typeCode;
+      message.typeDesc = "Test Message";
+      message.icaoAddress = icaoAddress;
+      message.ident = identification;
+
+      return message;
+    }
+
+    case 28 <= typeCode && typeCode <= 31: {
+      let identification = decodeIdentification(binaryMessage.slice(40, 88));
+      // Extract ICAO Address (first 24 bits)
+      let icaoAddress = parseInt(binaryMessage.slice(8, 32), 2)
+        .toString(16)
+        .toUpperCase()
+        .padStart(6, "0");
+      message.typeCode = typeCode;
+      message.typeDesc = "Extended Squitter";
+      message.icaoAddress = icaoAddress;
+      message.ident = identification;
+
+      return message;
+    }
+
+    default: {
+      let identification = decodeIdentification(binaryMessage.slice(40, 88));
+      // Extract ICAO Address (first 24 bits)
+      let icaoAddress = parseInt(binaryMessage.slice(8, 32), 2)
+        .toString(16)
+        .toUpperCase()
+        .padStart(6, "0");
+      message.typeCode = typeCode;
+      message.typeDesc = "Unknown";
+      message.icaoAddress = icaoAddress;
+      message.ident = identification;
+
+      return message;
+    }
   }
 }
 
@@ -172,48 +303,8 @@ function updateUI(data) {
   // clear
   const dataElement = document.getElementById("content-text");
   // set data
-  dataElement.textContent += `\n[${updateTriggeredCount}] ${data.split("cute=")[1]}`; // Clear previous content
+  dataElement.textContent += JSON.stringify(data); // Clear previous content
   // scroll down...
   dataElement.scrollTop = dataElement.scrollHeight;
   updateTriggeredCount++;
 }
-
-// Example usage
-let binaryMessage =
-  "0101110101000101110100000110010010110011101000001101010110010011011010100110011011010101101010010100110011110110";
-let parsed = parse(binaryMessage);
-console.log("[-] Test parse: ", parsed); // Expected output: tc=5;lat=37.0;lon=-122.0
-
-// DOM load events
-document.addEventListener("DOMContentLoaded", (event) => {
-  console.log("DOM fully loaded and parsed");
-
-  // Create a WebSocket connection
-  const socket = new WebSocket("ws://127.0.0.1:9000/echo");
-  // Connection opened
-  socket.addEventListener("open", (event) => {
-    console.log("WebSocket is open now.");
-    socket.send("echooo 2 10 10 10");
-  });
-  // Listen for messages
-  socket.addEventListener("message", (event) => {
-    console.log(`[-] Got data from server: ${event.data}`);
-    // TODO: try catch this
-    parsedData = parse(event.data);
-    // Update the UI
-    updateUI(parsedData);
-  });
-  // Handle errors
-  socket.addEventListener("error", (error) => {
-    console.error("WebSocket error observed:", error);
-    alert("WebSocket error observed:", error);
-  });
-  // Connection closed
-  socket.addEventListener("close", (event) => {
-    console.log("WebSocket is closed now.");
-  });
-
-  // Coordinates for Arad, Romania (test case)
-  let aradCoords = getCartesian(46.1866, 21.3123);
-  console.log(aradCoords);
-});

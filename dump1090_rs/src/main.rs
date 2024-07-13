@@ -49,7 +49,9 @@ async fn main() {
         warp::path::end().map(|| warp::reply::html(include_str!("./static/index.html")));
 
     // Route to serve index.js
-    let js_route = warp::path("index.js").map(|| include_str!("./static/index.js"));
+    let indexjs_route = warp::path("index.js").map(|| include_str!("./static/index.js"));
+    // Route to serve adsb.js
+    let adsbjs_route = warp::path("adsb.js").map(|| include_str!("./static/adsb.js"));
 
     // Route to serve index.css
     let css_route = warp::path("index.css").map(|| {
@@ -57,7 +59,7 @@ async fn main() {
     });
 
     // Combine all routes
-    let routes = index_route.or(js_route).or(css_route).or(ws);
+    let routes = index_route.or(indexjs_route).or(adsbjs_route).or(css_route).or(ws);
 
     // Start the server and await it
     warp::serve(routes).run(addr).await;

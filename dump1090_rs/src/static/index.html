@@ -5,12 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Control Tower</title>
     <link href="index.css" rel="stylesheet" />
-    <script src="index.js" defer></script>
+    <script src="adsb.js"></script>
+    <script src="index.js"></script>
   </head>
+
   <body>
     <div id="monitor">
       <div id="radar" class="radar">
         <div class="scanner"></div>
+
+        <!-- TODO: make this with JS and a loop, its retarded -->
         <ul class="points">
           <li></li>
           <li></li>
@@ -103,6 +107,7 @@
           <li></li>
           <li></li>
         </ul>
+
         <div class="circles">
           <div></div>
           <div></div>
@@ -110,10 +115,12 @@
           <div></div>
           <div></div>
         </div>
+
         <div class="lines">
           <div></div>
           <div></div>
         </div>
+
         <div class="targets">
           <div class="plane"></div>
           <div class="ufo"></div>
